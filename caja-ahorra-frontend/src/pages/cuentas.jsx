@@ -1,4 +1,4 @@
-// src/pages/socios.jsx
+// src/pages/cuentas.jsx
 import { useState } from "react";
 import { useApp } from "../context/appcontext";
 
@@ -7,122 +7,114 @@ import Table from "../components/ui/table";
 import Modal from "../components/ui/modal";
 import Field from "../components/ui/field";
 import Input from "../components/ui/input";
+import Select from "../components/ui/select";
 import Btn from "../components/ui/btn";
 import Badge from "../components/ui/badge";
 import PageHeader from "../components/ui/pageheader";
+import { fmt, fmtDate } from "../utils/format";
 
-import { fmtDate } from "../utils/format";
-import { validarCedula } from "../utils/validators";
-
-export default function Socios() {
-  const { socios, setSocios, showToast } = useApp();
+export default function Cuentas() {
+  const { cuentas, setCuentas, socios, showToast } = useApp();
 
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [errors, setErrors] = useState({});
-
-  const emptyForm = {
-    cedula: "",
-    nombre: "",
-    apellido: "",
-    telefono: "",
-    email: "",
-    fechaIngreso: new Date().toISOString().split("T")[0],
-    activo: true,
-    direccion: "",
-  };
-
-  const [form, setForm] = useState(emptyForm);
-
-  const validate = () => {
-    const e = {};
-    if (!form.cedula) e.cedula = "Requerida";
-    else if (!validarCedula(form.cedula)) e.cedula = "Cédula inválida";
-    if (!form.nombre.trim()) e.nombre = "Requerido";
-    if (!form.apellido.trim()) e.apellido = "Requerido";
-    if (!form.telefono) e.telefono = "Requerido";
-    return e;
-  };
+  const [form, setForm] = useState({
+    socioId: "",
+    numero: "",
+    tipo: "ahorro",
+    saldo: 0,
+    fechaApertura: new Date().toISOString().split("T")[0],
+    activa: true,
+  });
 
   const save = () => {
-    const e = validate();
-    if (Object.keys(e).length) {
-      setErrors(e);
+    if (!form.socioId || !form.numero) {
+      showToast("Campos requeridos", "error");
       return;
     }
 
     if (editing) {
-      setSocios((s) => s.map((x) => (x.id === editing.id ? { ...x, ...form } : x)));
-      showToast("Socio actualizado");
+      setCuentas((c) =>
+        c.map((x) => (x.id === editing.id ? { ...x, ...form, socioId: +form.socioId, saldo: +form.saldo } : x))
+      );
     } else {
-      setSocios((s) => [...s, { ...form, id: Date.now() }]);
-      showToast("Socio registrado");
+      setCuentas((c) => [...c, { ...form, id: Date.now(), socioId: +form.socioId, saldo: +form.saldo }]);
     }
 
+    showToast("Cuenta guardada");
     setModal(false);
   };
 
-  const open = (s = null) => {
-    setEditing(s);
-    setErrors({});
-    setForm(s ? { ...s } : emptyForm);
+  const cols = [
+    { key: "numero", label: "N° Cuenta" },
+    {
+      key: "socioId",
+      label: "Socio",
+      render: (v) => {
+        const s = socios.find((x) => x.id === v);
+        return s ? `${s.nombre} ${s.apellido}` : "-";
+      },
+    },
+    { key: "tipo", label: "Tipo", render: (v) => <Badge label={v} color={v === "ahorro" ? "info" : "warning"} /> },
+    { key: "saldo", label: "Saldo", render: (v) => <span style={{ color: "#22c55e", fontWeight: 600 }}>{fmt(v)}</span> },
+    { key: "fechaApertura", label: "Apertura", render: fmtDate },
+    { key: "activa", label: "Estado", render: (v) => <Badge label={v ? "Activa" : "Inactiva"} color={v ? "success" : "gray"} /> },
+  ];
+
+  const open = (c = null) => {
+    setEditing(c);
+    setForm(
+      c
+        ? { ...c }
+        : {
+            socioId: socios[0]?.id || "",
+            numero: `AH-${Date.now().toString().slice(-4)}-2024`,
+            tipo: "ahorro",
+            saldo: 0,
+            fechaApertura: new Date().toISOString().split("T")[0],
+            activa: true,
+          }
+    );
     setModal(true);
   };
 
-  const cols = [
-    { key: "cedula", label: "Cédula" },
-    { key: "nombre", label: "Nombre", render: (v, r) => `${v} ${r.apellido}` },
-    { key: "telefono", label: "Teléfono" },
-    { key: "email", label: "Email" },
-    { key: "fechaIngreso", label: "Ingreso", render: fmtDate },
-    { key: "activo", label: "Estado", render: (v) => <Badge label={v ? "Activo" : "Inactivo"} color={v ? "success" : "gray"} /> },
-  ];
-
   return (
     <div>
-      <PageHeader title="Socios" subtitle="Gestión de socios de la caja" action={<Btn onClick={() => open()}>+ Nuevo Socio</Btn>} />
+      <PageHeader title="Cuentas" subtitle="Gestión de cuentas de socios" action={<Btn onClick={() => open()}>+ Nueva Cuenta</Btn>} />
 
       <Card>
-        <Table
-          columns={cols}
-          data={socios}
-          onEdit={open}
-          onDelete={(s) => {
-            setSocios((x) => x.filter((i) => i.id !== s.id));
-            showToast("Socio eliminado", "warning");
-          }}
-        />
+        <Table columns={cols} data={cuentas} onEdit={open} />
       </Card>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Editar Socio" : "Nuevo Socio"} size="lg">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 20px" }}>
-          <Field label="Cédula" error={errors.cedula} required>
-            <Input value={form.cedula} onChange={(v) => setForm((f) => ({ ...f, cedula: v }))} placeholder="1712345678" />
-          </Field>
+      <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Editar Cuenta" : "Nueva Cuenta"}>
+        <Field label="Socio" required>
+          <Select value={form.socioId} onChange={(v) => setForm((f) => ({ ...f, socioId: v }))}>
+            <option value="">Seleccionar...</option>
+            {socios.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre} {s.apellido} - {s.cedula}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-          <Field label="Fecha de Ingreso" required>
-            <Input value={form.fechaIngreso} onChange={(v) => setForm((f) => ({ ...f, fechaIngreso: v }))} type="date" />
-          </Field>
+        <Field label="Número de Cuenta" required>
+          <Input value={form.numero} onChange={(v) => setForm((f) => ({ ...f, numero: v }))} />
+        </Field>
 
-          <Field label="Nombres" error={errors.nombre} required>
-            <Input value={form.nombre} onChange={(v) => setForm((f) => ({ ...f, nombre: v }))} />
-          </Field>
+        <Field label="Tipo">
+          <Select value={form.tipo} onChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
+            <option value="ahorro">Ahorro</option>
+            <option value="aportacion">Aportación</option>
+          </Select>
+        </Field>
 
-          <Field label="Apellidos" error={errors.apellido} required>
-            <Input value={form.apellido} onChange={(v) => setForm((f) => ({ ...f, apellido: v }))} />
-          </Field>
+        <Field label="Saldo inicial">
+          <Input value={form.saldo} onChange={(v) => setForm((f) => ({ ...f, saldo: v }))} type="number" />
+        </Field>
 
-          <Field label="Teléfono" error={errors.telefono} required>
-            <Input value={form.telefono} onChange={(v) => setForm((f) => ({ ...f, telefono: v }))} placeholder="0991234567" />
-          </Field>
-
-          <Field label="Email">
-            <Input value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
-          </Field>
-        </div>
-
-        <Field label="Dirección">
-          <Input value={form.direccion} onChange={(v) => setForm((f) => ({ ...f, direccion: v }))} />
+        <Field label="Fecha apertura">
+          <Input value={form.fechaApertura} onChange={(v) => setForm((f) => ({ ...f, fechaApertura: v }))} type="date" />
         </Field>
 
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>

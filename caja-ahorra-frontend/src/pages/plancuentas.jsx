@@ -1,4 +1,4 @@
-// src/pages/usuarios.jsx
+// src/pages/plancuentas.jsx
 import { useState } from "react";
 import { useApp } from "../context/appcontext";
 
@@ -12,100 +12,77 @@ import Btn from "../components/ui/btn";
 import Badge from "../components/ui/badge";
 import PageHeader from "../components/ui/pageheader";
 
-export default function Usuarios() {
-  const { usuarios, setUsuarios, showToast } = useApp();
+export default function PlanCuentas() {
+  const { planCuentas, setPlanCuentas, showToast } = useApp();
 
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ nombre: "", email: "", password: "", rol: "Cajero", activo: true });
-  const [errors, setErrors] = useState({});
-
-  const validate = () => {
-    const e = {};
-    if (!form.nombre.trim()) e.nombre = "Requerido";
-    if (!form.email.includes("@")) e.email = "Email inválido";
-    if (!editing && !form.password) e.password = "Requerido";
-    return e;
-  };
+  const [form, setForm] = useState({ codigo: "", nombre: "", tipo: "Activo", nivel: 3 });
 
   const save = () => {
-    const e = validate();
-    if (Object.keys(e).length) {
-      setErrors(e);
+    if (!form.codigo || !form.nombre) {
+      showToast("Campos requeridos", "error");
       return;
     }
 
     if (editing) {
-      setUsuarios((u) => u.map((x) => (x.id === editing.id ? { ...x, ...form } : x)));
-      showToast("Usuario actualizado");
+      setPlanCuentas((p) => p.map((x) => (x.id === editing.id ? { ...x, ...form, nivel: +form.nivel } : x)));
     } else {
-      setUsuarios((u) => [...u, { ...form, id: Date.now() }]);
-      showToast("Usuario creado");
+      setPlanCuentas((p) => [...p, { ...form, id: Date.now(), nivel: +form.nivel }]);
     }
 
+    showToast("Cuenta guardada");
     setModal(false);
   };
 
-  const open = (u = null) => {
-    setEditing(u);
-    setForm(
-      u
-        ? { nombre: u.nombre, email: u.email, password: "", rol: u.rol, activo: u.activo }
-        : { nombre: "", email: "", password: "", rol: "Cajero", activo: true }
-    );
-    setErrors({});
+  const open = (item = null) => {
+    setEditing(item);
+    setForm(item ? { codigo: item.codigo, nombre: item.nombre, tipo: item.tipo, nivel: item.nivel } : { codigo: "", nombre: "", tipo: "Activo", nivel: 3 });
     setModal(true);
   };
 
   const cols = [
+    { key: "codigo", label: "Código" },
     { key: "nombre", label: "Nombre" },
-    { key: "email", label: "Email" },
-    { key: "rol", label: "Rol", render: (v) => <Badge label={v} color={v === "Admin" ? "error" : v === "Cajero" ? "info" : "warning"} /> },
-    { key: "activo", label: "Estado", render: (v) => <Badge label={v ? "Activo" : "Inactivo"} color={v ? "success" : "gray"} /> },
+    { key: "tipo", label: "Tipo", render: (v) => <Badge label={v} color={v === "Activo" ? "info" : v === "Pasivo" ? "warning" : v === "Ingreso" ? "success" : "error"} /> },
+    { key: "nivel", label: "Nivel" },
   ];
 
   return (
     <div>
-      <PageHeader title="Usuarios" subtitle="Gestión de usuarios del sistema" action={<Btn onClick={() => open()}>+ Nuevo Usuario</Btn>} />
+      <PageHeader title="Plan de Cuentas" action={<Btn onClick={() => open()}>+ Nueva Cuenta</Btn>} />
 
       <Card>
         <Table
           columns={cols}
-          data={usuarios}
+          data={planCuentas}
           onEdit={open}
-          onDelete={(u) => {
-            setUsuarios((x) => x.filter((i) => i.id !== u.id));
-            showToast("Usuario eliminado", "warning");
+          onDelete={(c) => {
+            setPlanCuentas((p) => p.filter((x) => x.id !== c.id));
+            showToast("Cuenta eliminada", "warning");
           }}
         />
       </Card>
 
-      <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Editar Usuario" : "Nuevo Usuario"}>
-        <Field label="Nombre completo" error={errors.nombre} required>
+      <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Editar Cuenta" : "Nueva Cuenta"}>
+        <Field label="Código" required>
+          <Input value={form.codigo} onChange={(v) => setForm((f) => ({ ...f, codigo: v }))} placeholder="1.1.01" />
+        </Field>
+
+        <Field label="Nombre" required>
           <Input value={form.nombre} onChange={(v) => setForm((f) => ({ ...f, nombre: v }))} />
         </Field>
 
-        <Field label="Email" error={errors.email} required>
-          <Input value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
-        </Field>
-
-        <Field label={editing ? "Nueva contraseña (dejar vacío para no cambiar)" : "Contraseña"} error={errors.password} required={!editing}>
-          <Input value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} type="password" />
-        </Field>
-
-        <Field label="Rol">
-          <Select value={form.rol} onChange={(v) => setForm((f) => ({ ...f, rol: v }))}>
-            <option>Admin</option>
-            <option>Cajero</option>
-            <option>Auditor</option>
+        <Field label="Tipo">
+          <Select value={form.tipo} onChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
+            {["Activo", "Pasivo", "Ingreso", "Egreso", "Patrimonio"].map((t) => (
+              <option key={t}>{t}</option>
+            ))}
           </Select>
         </Field>
 
-        <Field label="Estado">
-          <Select value={form.activo ? "1" : "0"} onChange={(v) => setForm((f) => ({ ...f, activo: v === "1" }))}>
-            <option value="1">Activo</option>
-            <option value="0">Inactivo</option>
-          </Select>
+        <Field label="Nivel">
+          <Input value={form.nivel} onChange={(v) => setForm((f) => ({ ...f, nivel: v }))} type="number" />
         </Field>
 
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>

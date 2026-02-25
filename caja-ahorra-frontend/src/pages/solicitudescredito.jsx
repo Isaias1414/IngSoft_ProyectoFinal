@@ -1,122 +1,186 @@
-// src/pages/consultamovimientos.jsx
-import { useState } from "react";
+// src/pages/solicitudescredito.jsx
+import { useMemo, useState } from "react";
 import { useApp } from "../context/appcontext";
 
 import Card from "../components/ui/card";
+import Table from "../components/ui/table";
+import Modal from "../components/ui/modal";
 import Field from "../components/ui/field";
 import Input from "../components/ui/input";
+import Select from "../components/ui/select";
 import Btn from "../components/ui/btn";
+import Badge from "../components/ui/badge";
 import PageHeader from "../components/ui/pageheader";
 
 import { fmt, fmtDate } from "../utils/format";
+import { calcAmortizacion } from "../utils/finance";
 
-export default function ConsultaMovimientos() {
-  const { socios, cuentas, movimientos } = useApp();
+export default function SolicitudesCredito() {
+  const { creditos, setCreditos, socios, showToast, addAsientoContable } = useApp();
 
-  const [cedula, setCedula] = useState("");
-  const [numCuenta, setNumCuenta] = useState("");
-  const [resultado, setResultado] = useState(null);
-  const [error, setError] = useState("");
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  const consultar = () => {
-    setError("");
-    setResultado(null);
+  const emptyForm = useMemo(
+    () => ({
+      socioId: socios[0]?.id || "",
+      monto: "",
+      plazo: 12,
+      tasa: 15,
+      fecha: new Date().toISOString().split("T")[0],
+      estado: "pendiente",
+    }),
+    [socios]
+  );
 
-    if (!cedula || !numCuenta) {
-      setError("Complete todos los campos");
+  const [form, setForm] = useState(emptyForm);
+
+  const { cuota } = form.monto && form.plazo ? calcAmortizacion(+form.monto, +form.plazo, +form.tasa) : { cuota: 0 };
+
+  const save = () => {
+    if (!form.socioId || !form.monto || +form.monto <= 0) {
+      showToast("Complete los campos requeridos", "error");
       return;
     }
 
-    const socio = socios.find((s) => s.cedula === cedula);
-    if (!socio) {
-      setError("No se encontró socio con esa cédula");
-      return;
+    if (editing) {
+      setCreditos((c) =>
+        c.map((x) =>
+          x.id === editing.id
+            ? { ...x, ...form, monto: +form.monto, plazo: +form.plazo, tasa: +form.tasa, cuotaMensual: cuota, saldoPendiente: +form.monto }
+            : x
+        )
+      );
+    } else {
+      setCreditos((c) => [
+        ...c,
+        { ...form, id: Date.now(), socioId: +form.socioId, monto: +form.monto, plazo: +form.plazo, tasa: +form.tasa, cuotaMensual: cuota, saldoPendiente: +form.monto },
+      ]);
     }
 
-    const cuenta = cuentas.find((c) => c.numero === numCuenta && c.socioId === socio.id);
-    if (!cuenta) {
-      setError("Cuenta no encontrada para ese socio");
-      return;
-    }
-
-    const movs = movimientos.filter((m) => m.cuentaId === cuenta.id).slice(0, 3);
-    setResultado({ socio, cuenta, movimientos: movs });
+    showToast("Crédito guardado");
+    setModal(false);
   };
+
+  const aprobar = (cred) => {
+    setCreditos((c) => c.map((x) => (x.id === cred.id ? { ...x, estado: "aprobado" } : x)));
+
+    const s = socios.find((x) => x.id === cred.socioId);
+    addAsientoContable(`Entrega crédito - ${s?.nombre} ${s?.apellido}`, cred.monto, cred.monto, "1.2.01", "1.1.01");
+    showToast("Crédito aprobado y entregado");
+  };
+
+  const cols = [
+    { key: "socioId", label: "Socio", render: (v) => {
+        const s = socios.find((x) => x.id === v);
+        return s ? `${s.nombre} ${s.apellido}` : "-";
+      }
+    },
+    { key: "monto", label: "Monto", render: (v) => fmt(v) },
+    { key: "plazo", label: "Plazo", render: (v) => `${v} meses` },
+    { key: "tasa", label: "Tasa", render: (v) => `${v}%` },
+    { key: "cuotaMensual", label: "Cuota", render: (v) => fmt(v) },
+    { key: "saldoPendiente", label: "Saldo Pend.", render: (v) => <span style={{ color: "#f59e0b" }}>{fmt(v)}</span> },
+    { key: "estado", label: "Estado", render: (v) => <Badge label={v} color={v === "aprobado" ? "success" : v === "pendiente" ? "warning" : "error"} /> },
+    { key: "fecha", label: "Fecha", render: fmtDate },
+  ];
 
   return (
     <div>
-      <PageHeader title="Consulta de Movimientos" subtitle="Consulte saldo y últimos 3 movimientos" />
-
-      <div style={{ maxWidth: 700, margin: "0 auto" }}>
-        <Card style={{ marginBottom: 24 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <Field label="Cédula del Socio" required>
-              <Input value={cedula} onChange={setCedula} placeholder="1712345678" />
-            </Field>
-            <Field label="Número de Cuenta" required>
-              <Input value={numCuenta} onChange={setNumCuenta} placeholder="AH-001-2023" />
-            </Field>
-          </div>
-
-          {error && <p style={{ color: "#ef4444", margin: "0 0 16px" }}>{error}</p>}
-
-          <Btn onClick={consultar} style={{ width: "100%", justifyContent: "center", display: "flex" }}>
-            🔍 Consultar
+      <PageHeader
+        title="Solicitudes de Crédito"
+        action={
+          <Btn
+            onClick={() => {
+              setEditing(null);
+              setForm(emptyForm);
+              setModal(true);
+            }}
+          >
+            + Nueva Solicitud
           </Btn>
-        </Card>
+        }
+      />
 
-        {resultado && (
-          <div>
-            <Card style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ margin: "0 0 4px", color: "#64748b", fontSize: 12 }}>Titular</p>
-                  <p style={{ margin: 0, color: "#f1f5f9", fontWeight: 700, fontSize: 18 }}>
-                    {resultado.socio.nombre} {resultado.socio.apellido}
-                  </p>
-                  <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 13 }}>
-                    Cédula: {resultado.socio.cedula} | Cuenta: {resultado.cuenta.numero}
-                  </p>
+      <Card>
+        <Table
+          columns={cols}
+          data={creditos}
+          onEdit={(c) => {
+            setEditing(c);
+            setForm({ ...c });
+            setModal(true);
+          }}
+          onDelete={(c) => {
+            setCreditos((x) => x.filter((i) => i.id !== c.id));
+            showToast("Eliminado", "warning");
+          }}
+        />
+
+        <div style={{ marginTop: 12 }}>
+          {creditos
+            .filter((c) => c.estado === "pendiente")
+            .map((c) => {
+              const s = socios.find((x) => x.id === c.socioId);
+              return (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: "1px solid #1e2d45" }}>
+                  <span style={{ color: "#f59e0b", fontSize: 13 }}>⏳ Pendiente: {s?.nombre} - {fmt(c.monto)}</span>
+                  <Btn size="sm" variant="success" onClick={() => aprobar(c)}>
+                    Aprobar y Entregar
+                  </Btn>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <p style={{ margin: "0 0 4px", color: "#64748b", fontSize: 12 }}>Saldo Actual</p>
-                  <p style={{ margin: 0, color: "#22c55e", fontSize: 28, fontWeight: 800 }}>{fmt(resultado.cuenta.saldo)}</p>
-                </div>
-              </div>
-            </Card>
+              );
+            })}
+        </div>
+      </Card>
 
-            <Card>
-              <h3 style={{ margin: "0 0 16px", color: "#f1f5f9", fontSize: 15 }}>Últimos 3 movimientos</h3>
+      <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Editar Crédito" : "Nueva Solicitud"}>
+        <Field label="Socio" required>
+          <Select value={form.socioId} onChange={(v) => setForm((f) => ({ ...f, socioId: v }))}>
+            {socios.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre} {s.apellido}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-              {resultado.movimientos.length === 0 ? (
-                <p style={{ color: "#64748b", textAlign: "center", padding: 24 }}>Sin movimientos registrados</p>
-              ) : (
-                resultado.movimientos.map((m) => (
-                  <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #1e2d45" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: m.tipo === "deposito" ? "#22c55e22" : "#f59e0b22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
-                        {m.tipo === "deposito" ? "⬆️" : "⬇️"}
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, color: "#cbd5e1", fontSize: 14, fontWeight: 500 }}>{m.descripcion}</p>
-                        <p style={{ margin: 0, color: "#64748b", fontSize: 12 }}>{fmtDate(m.fecha)}</p>
-                      </div>
-                    </div>
+        <Field label="Monto solicitado (USD)" required>
+          <Input value={form.monto} onChange={(v) => setForm((f) => ({ ...f, monto: v }))} type="number" placeholder="0.00" />
+        </Field>
 
-                    <div style={{ textAlign: "right" }}>
-                      <p style={{ margin: 0, color: m.tipo === "deposito" ? "#22c55e" : "#f59e0b", fontWeight: 700, fontSize: 15 }}>
-                        {m.tipo === "deposito" ? "+" : "-"}
-                        {fmt(m.monto)}
-                      </p>
-                      <p style={{ margin: 0, color: "#64748b", fontSize: 11 }}>Saldo: {fmt(m.saldoDespues)}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </Card>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Field label="Plazo (meses)">
+            <Select value={form.plazo} onChange={(v) => setForm((f) => ({ ...f, plazo: v }))}>
+              {[3, 6, 12, 18, 24, 36, 48, 60].map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Tasa anual (%)">
+            <Input value={form.tasa} onChange={(v) => setForm((f) => ({ ...f, tasa: v }))} type="number" />
+          </Field>
+        </div>
+
+        {cuota > 0 && (
+          <div style={{ background: "#0f2447", borderRadius: 8, padding: 14, marginBottom: 16 }}>
+            <p style={{ margin: 0, color: "#64748b", fontSize: 12 }}>Cuota mensual estimada</p>
+            <p style={{ margin: 0, color: "#3b82f6", fontSize: 20, fontWeight: 700 }}>{fmt(cuota)}</p>
           </div>
         )}
-      </div>
+
+        <Field label="Fecha">
+          <Input value={form.fecha} onChange={(v) => setForm((f) => ({ ...f, fecha: v }))} type="date" />
+        </Field>
+
+        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+          <Btn variant="ghost" onClick={() => setModal(false)}>
+            Cancelar
+          </Btn>
+          <Btn onClick={save}>Guardar</Btn>
+        </div>
+      </Modal>
     </div>
   );
 }
