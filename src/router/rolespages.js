@@ -1,0 +1,22 @@
+// src/router/rolespages.js
+export const ROLES_PAGES = {
+  dashboard: ["Admin", "Cajero", "Auditor"],
+  usuarios: ["Admin"],
+  "plan-cuentas": ["Admin"],
+  "tipos-aportacion": ["Admin"],
+  socios: ["Admin", "Cajero"],
+  cuentas: ["Admin", "Cajero"],
+  "depositos-ahorro": ["Admin", "Cajero"],
+  "retiros-ahorro": ["Admin", "Cajero"],
+  "depositos-aportacion": ["Admin", "Cajero"],
+  "retiros-aportacion": ["Admin", "Cajero"],
+  "consulta-movimientos": ["Admin", "Cajero", "Auditor"],
+  "solicitudes-credito": ["Admin", "Cajero"],
+  amortizacion: ["Admin", "Cajero", "Auditor"],
+  "pago-cuotas": ["Admin", "Cajero"],
+  "diario-caja": ["Admin", "Cajero", "Auditor"],
+  "reporte-libro-diario": ["Admin", "Auditor"],
+  "reporte-historial-ahorros": ["Admin", "Auditor"],
+  "reporte-cartera": ["Admin", "Auditor"],
+  "reporte-aportaciones": ["Admin", "Auditor"],
+};
